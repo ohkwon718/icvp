@@ -1,0 +1,5 @@
+{
+    "global_path": true,
+    "model": "paper",
+    "trained_model": "./pretrained_model/ft.pt"    
+}

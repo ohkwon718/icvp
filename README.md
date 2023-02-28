@@ -1,2 +1,2 @@
 # icvp
-Image Coupled Volume Propagation
+Image-Coupled Volume Propagation

@@ -1,0 +1,6 @@
+{
+    "global_path": true,
+    "model": "general",
+    "trained_model": "./pretrained_model/general.pt",
+    "keep_tree": true
+}
