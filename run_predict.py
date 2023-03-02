@@ -30,20 +30,22 @@ parser.add_argument('--img-right', type=str, required=True, help="right image fi
 parser.add_argument('--config', type=str, default="",  help="load configuration")
 parser.add_argument('--global-path', default=False, action='store_true', help="import/export on global path")
 parser.add_argument('--trained-model', type=str, default="latest.pt",  help="saved file name")
-parser.add_argument('--savedir', type=str, default="predict",  help="directory to save")
+parser.add_argument('--savedir', type=str, default="results",  help="directory to save")
 parser.add_argument('--keep-tree', default=False, action='store_true', help="keep the directory structure of input")
 parser.add_argument('--batch-size', type=int, default=-1,  help="batch size")
 parser.add_argument('--resize', nargs='+', type=int, help="resize input images")
 parser.add_argument('--max-disp', type=int, default=192, help="maximum disparity")
+parser.add_argument('--shift-disp', type=int, default=0, help="expected minimum disparity")
 parser.add_argument('--scale-up', type=int, help="rescale input images")
 parser.add_argument('--scale-down', type=int, help="rescale input images")
+parser.add_argument('--crop-center', nargs='+', type=int, help="cropping size for original image")
 parser.add_argument('--recover-scale', default=False, action='store_true', help="Do you want recover the original scale?")
 parser.add_argument('--not-save-img', default=False, action='store_true', help="not save imgs")
 parser.add_argument('--not-save-npz', default=False, action='store_true', help="save npz")
 parser.add_argument('--benchmark', type=str, default="", help="for submission")
+parser.add_argument('--cmap', type=str, default="inferno", help="color map for result images")
 
 args = parser.parse_args()
-
 
 if args.config != '':
     with open(args.config, 'r') as f:
