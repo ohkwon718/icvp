@@ -6,8 +6,6 @@ import time
 
 
 
-# loss(out, gt, auxiliary, mask_, d_max = d_max)
-
 def get_epe(diff, mask):
     err = [diff[i, mask[i]].mean().item() if mask[i].sum() > 0 else 0.0 for i in range(len(diff))]
     return err

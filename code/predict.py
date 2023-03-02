@@ -13,7 +13,7 @@ import config
 from utils.pfm import save_pfm
 from model import __models__
 import utils.visualize as vis
-
+from utils.cycleconsist import cycle_consistency_mask
 
 def load_impair(fname_left, fname_right):
     left_ = np.asarray(Image.open(fname_left))            
@@ -28,6 +28,53 @@ def load_impair(fname_left, fname_right):
     right_ = right_[...,:h,:w]
     return left_, right_
 
+
+def run_sample(left_, right_, model, device, args):
+    start = time.time()
+    b, _, h_in, w_in = left_.shape
+    if args.shift_disp:
+        empty = torch.zeros_like(right_)
+        empty[..., args.shift_disp:] = right_[...,:-args.shift_disp]
+        right_ = empty
+
+    if args.crop_center:                
+        empty = torch.full((b,h_in,w_in), -1.0, dtype=left_.dtype)
+        y_center, x_center = h_in//2, w_in//2                
+        y0, x0 = y_center - args.crop_center[0]//2, x_center - args.crop_center[1]//2
+        y1, x1 = y0 + args.crop_center[0], x0 + args.crop_center[1]
+        x0 -= args.max_disp
+        left_ = left_[...,y0:y1,x0:x1]
+        right_ = right_[...,y0:y1,x0:x1]
+    
+    _, _, h_crop, w_crop = left_.shape
+    if args.resize:
+        size_resize = args.resize
+    elif args.scale_up:
+        size_resize = (int(h_crop*args.scale_up),int(w_crop*args.scale_up))
+    elif args.scale_down:
+        size_resize = int(h_crop/args.scale_down),int(w_crop/args.scale_down)
+    else:
+        size_resize = None            
+
+    left, right = left_.to(device), right_.to(device)
+    if size_resize:
+        left = F.interpolate(left, size=size_resize, mode='bilinear', align_corners=True) 
+        right = F.interpolate(right, size=size_resize, mode='bilinear', align_corners=True)
+    out, _ = model(left, right, ceil(args.max_disp*left.shape[-1]/w_crop))                                
+    if size_resize and (args.recover_scale or args.crop_center):
+        out = w_crop/out.shape[-1] * F.interpolate(out, size=[h_crop,w_crop], mode='bilinear', align_corners=True)            
+    torch.cuda.synchronize()
+    end = time.time()
+    
+    elapsed = end-start                
+    out_ = out[:,0].cpu()
+    
+    if args.shift_disp:
+        out_ += args.shift_disp            
+    if args.crop_center:            
+        empty[...,y0:y1,x1-args.crop_center[1]:x1] = out_[...,args.max_disp:]
+        out_ = empty
+    return out_, elapsed
 
 def run(args, path_run):    
     path_result = os.path.join(path_run, args.savedir)
@@ -60,50 +107,15 @@ def run(args, path_run):
         fnames_right = sorted(glob.glob(os.path.join(args.rootpath, args.img_right)))
         
         for fname_left, fname_right in zip(fnames_left, fnames_right):        
-            left_, right_ = load_impair(fname_left, fname_right)
-            b, _, h_in, w_in = left_.shape
-            if args.shift_disp:
-                empty = torch.zeros_like(right_)
-                empty[..., args.shift_disp:] = right_[...,:-args.shift_disp]
-
-            if args.crop_center:                
-                empty = torch.full((b,h_in,w_in), -1)
-                y_center, x_center = h_in//2, w_in//2                
-                y0, x0 = y_center - args.crop_center[0]//2, x_center - args.crop_center[1]//2
-                y1, x1 = y0 + args.crop_center[0], x0 + args.crop_center[1]
-                x0 -= args.max_disp
-                left_ = left_[...,y0:y1,x0:x1]
-                right_ = right_[...,y0:y1,x0:x1]
+            left_, right_ = load_impair(fname_left, fname_right)            
+            out_, elapsed = run_sample(left_, right_, model, device, args)
+            if args.cycle_test_ths > 0:
+                out_right, elapsed_right = run_sample(torch.flip(right_, dims=(-1,)), torch.flip(left_, dims=(-1,)), model, device, args)
+                out_right = torch.flip(out_right, dims=(-1,))
+                mask = cycle_consistency_mask(out_, out_right, args.cycle_test_ths)
+                out_[mask] = -1.0
+                elapsed += elapsed_right                
             
-            _, _, h_crop, w_crop = left_.shape
-            if args.resize:
-                size_resize = args.resize
-            elif args.scale_up:
-                size_resize = (int(h_crop*args.scale_up),int(w_crop*args.scale_up))
-            elif args.scale_down:
-                size_resize = int(h_crop/args.scale_down),int(w_crop/args.scale_down)
-            else:
-                size_resize = None            
-
-            left, right = left_.to(device), right_.to(device)      
-            start = time.time()
-            if size_resize:
-                left = F.interpolate(left, size=size_resize, mode='bilinear', align_corners=True) 
-                right = F.interpolate(right, size=size_resize, mode='bilinear', align_corners=True)
-            out, _ = model(left, right, ceil(args.max_disp*left.shape[-1]/w_crop))                                
-            if size_resize and (args.recover_scale or args.crop_center):
-                out = w_crop/out.shape[-1] * F.interpolate(out, size=[h_crop,w_crop], mode='bilinear', align_corners=True)            
-            torch.cuda.synchronize()
-            end = time.time()
-            
-            elapsed = end-start                
-            out_ = out[:,0].cpu()
-            if args.shift_disp:
-                out_ += args.shift_disp            
-            if args.crop_center:            
-                empty[...,y0:y1,x1-args.crop_center[1]:x1] = out_[...,args.max_disp:]
-                out_ = empty
-
             if args.keep_tree or args.benchmark == 'kitti':
                 relpath = os.path.relpath(fname_left, args.rootpath)
                 fullpath_result = os.path.join(path_result, os.path.splitext(relpath)[0])
