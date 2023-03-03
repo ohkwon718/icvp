@@ -113,7 +113,7 @@ def run(args, path_run):
                 out_right, elapsed_right = run_sample(torch.flip(right_, dims=(-1,)), torch.flip(left_, dims=(-1,)), model, device, args)
                 out_right = torch.flip(out_right, dims=(-1,))
                 mask = cycle_consistency_mask(out_, out_right, args.cycle_test_ths)
-                out_[mask] = -1.0
+                out_[torch.logical_not(mask)] = -1.0
                 elapsed += elapsed_right                
             
             if args.keep_tree or args.benchmark == 'kitti':
