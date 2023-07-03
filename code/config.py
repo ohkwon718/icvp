@@ -39,18 +39,11 @@ aug_params = {
 augs = [ColorTransform(hue=0.0/3.14, asymmetric_prob=1.0), EraserTransform(num_rect = [5, 6], size=(50,50,100,100), type='replacement')]
 
 
-# trainset = SceneFlowDataset(dataset="train", crop_size=(540, 576), parts=["FlyingThings"])
-trainset = SceneFlowDataset(dataset="train", crop_size=(540, 576), parts=["FlyingThings"],datasize=10)
-
+trainset = SceneFlowDataset(dataset="train", crop_size=(540, 576), parts=["FlyingThings"])
 training_batch_size = 2
 
-
-
-# testsets = {
-#     "ft":SceneFlowDataset(dataset="test", parts=["FlyingThings"])
-# }
 testsets = {
-    "ft":SceneFlowDataset(dataset="test", parts=["FlyingThings"], datasize=10)
+    "ft":SceneFlowDataset(dataset="test", parts=["FlyingThings"])
 }
 test_batch_size = 1
 
